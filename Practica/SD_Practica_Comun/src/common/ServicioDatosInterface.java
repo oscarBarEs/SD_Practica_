@@ -26,4 +26,7 @@ public interface ServicioDatosInterface extends Remote {
     
     // --- Estadísticas y Gestión ---
     int obtenerNumeroUsuarios() throws RemoteException;
+    
+    List<String> obtenerListadoUsuarios() throws RemoteException;
+
 }
