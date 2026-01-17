@@ -1,3 +1,5 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package servidor;
 
 import java.rmi.registry.LocateRegistry;

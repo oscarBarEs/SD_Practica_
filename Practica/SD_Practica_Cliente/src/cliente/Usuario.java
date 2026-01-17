@@ -1,3 +1,5 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package cliente;
 
 import java.rmi.registry.LocateRegistry;
@@ -11,32 +13,25 @@ import common.ServicioGestorInterface;
 
 public class Usuario {
 
-    // Referencias a los servicios remotos
     private static ServicioAutenticacionInterface authService;
     private static ServicioGestorInterface gestorService;
     
-    // Objeto callback (nuestra "oreja")
     private static CallbackUsuarioInterface callbackObj;
     
-    // Datos de sesión
     private static String miNick = null;
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
         try {
-            // 1. Localizar el registro RMI
             Registry registry = LocateRegistry.getRegistry("localhost", 1099);
             
-            // 2. Buscar los servicios del Servidor
             authService = (ServicioAutenticacionInterface) registry.lookup("ServicioAutenticacion");
             gestorService = (ServicioGestorInterface) registry.lookup("ServicioGestor");
             
-            // 3. Preparar nuestro objeto Callback
-            callbackObj = new ClienteCallbackImpl();
+            callbackObj = new CallbackUsuarioImpl();
             
             System.out.println("--- CLIENTE DE MICROBLOGGING INICIADO ---");
             
-            // Bucle del Menú Inicial (Registro/Login)
             boolean salir = false;
             while (!salir) {
                 mostrarMenuInicial();
@@ -48,7 +43,6 @@ public class Usuario {
                         break;
                     case "2":
                         if (hacerLogin()) {
-                            // Si el login es correcto, entramos al menú principal
                             bucleMenuPrincipal();
                         }
                         break;
@@ -61,7 +55,6 @@ public class Usuario {
                 }
             }
             
-            // Cerrar recursos
             System.exit(0);
             
         } catch (Exception e) {
@@ -70,7 +63,7 @@ public class Usuario {
         }
     }
 
-    // --- MENÚS Y LÓGICA DE INTERFAZ (Pág. 6) ---
+    // --- MENÚS Y LÓGICA DE INTERFAZ  ---
 
     private static void mostrarMenuInicial() {
         System.out.println("\n=== BIENVENIDO AL SISTEMA ===");
@@ -109,7 +102,6 @@ public class Usuario {
             System.out.print("Password: ");
             String pass = scanner.nextLine();
             
-            // IMPORTANTE: Enviamos 'callbackObj' para que el servidor nos pueda contactar
             boolean ok = authService.login(nick, pass, callbackObj);
             
             if (ok) {
@@ -126,7 +118,6 @@ public class Usuario {
         }
     }
 
-    // Bucle del Menú Principal (Usuario Logueado) - Pág 6
     private static void bucleMenuPrincipal() {
         boolean logout = false;
         while (!logout) {
@@ -137,17 +128,20 @@ public class Usuario {
                 System.out.println("3.- Listar Usuarios del Sistema");
                 System.out.println("4.- Seguir a");
                 System.out.println("5.- Dejar de seguir a");
-                System.out.println("6.- Borrar trino (Opcional - No implementado)");
+                System.out.println("6.- Borrar trino ");
                 System.out.println("7.- Salir \"Logout\"");
                 System.out.print("Elija opción: ");
                 
                 String opcion = scanner.nextLine();
                 
                 switch (opcion) {
-                    case "1":
-                        // Información básica (Pág 6: Info del Usuario)
-                        System.out.println("Usuario conectado: " + miNick);
-                        break;
+                case "1":
+                    System.out.println("\n--- INFO DE " + miNick + " ---");
+                    int nSeguidores = gestorService.obtenerNumSeguidores(miNick);
+                    int nTrinos = gestorService.obtenerNumTrinos(miNick);
+                    System.out.println("Seguidores: " + nSeguidores);
+                    System.out.println("Trinos publicados: " + nTrinos);
+                    break;
                         
                     case "2":
                         System.out.print("Escribe tu mensaje: ");
@@ -159,8 +153,7 @@ public class Usuario {
                     case "3":
                         List<String> usuarios = gestorService.listarUsuarios();
                         System.out.println("--- Usuarios del Sistema ---");
-                        // NOTA: Si dejaste el 'throw Exception' en el servidor, esto fallará. 
-                        // Asumimos que lo arreglaremos o mostrará error controlado.
+
                         for (String u : usuarios) {
                             System.out.println("- " + u);
                         }
@@ -169,6 +162,12 @@ public class Usuario {
                     case "4":
                         System.out.print("Nick del usuario a seguir: ");
                         String aSeguir = scanner.nextLine();
+                        
+                        if (aSeguir.equals(miNick)) {
+                            System.out.println(">> ERROR: No tiene sentido seguirte a ti mismo.");
+                            break; 
+                        }
+                        
                         gestorService.seguirUsuario(miNick, aSeguir);
                         System.out.println(">> Ahora sigues a " + aSeguir);
                         break;
@@ -181,7 +180,32 @@ public class Usuario {
                         break;
                         
                     case "6":
-                        System.out.println("Opción opcional no implementada.");
+                        System.out.println("\n--- BORRAR UN TRINO ---");
+                        List<common.Trino> misTrinos = gestorService.listarTrinos(miNick);
+                        
+                        if (misTrinos.isEmpty()) {
+                            System.out.println("No tienes trinos publicados.");
+                        } else {
+                            System.out.println("Tus trinos (Copia el ID/Timestamp para borrar):");
+                            for (common.Trino t : misTrinos) {
+                                System.out.println("[" + t.GetTimestamp() + "] " + t.GetTrino());
+                            }
+                            
+                            System.out.print("\nIntroduce el ID (número largo) del trino a borrar: ");
+                            try {
+                                String inputStr = scanner.nextLine();
+                                long idBorrar = Long.parseLong(inputStr);
+                                
+                                boolean borrado = gestorService.borrarTrino(miNick, idBorrar);
+                                if (borrado) {
+                                    System.out.println(">> Trino eliminado correctamente.");
+                                } else {
+                                    System.out.println(">> Error: No se encontró un trino con ese ID.");
+                                }
+                            } catch (NumberFormatException e) {
+                                System.out.println(">> Error: El ID debe ser un número válido.");
+                            }
+                        }
                         break;
                         
                     case "7":
@@ -195,7 +219,6 @@ public class Usuario {
                         System.out.println("Opción no válida.");
                 }
             } catch (Exception e) {
-                // Capturamos excepciones para no sacar al usuario del programa por un error de red puntual
                 System.err.println("Error en operación: " + e.getMessage());
             }
         }

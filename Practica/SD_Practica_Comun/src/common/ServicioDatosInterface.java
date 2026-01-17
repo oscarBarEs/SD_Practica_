@@ -1,3 +1,5 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package common;
 
 import java.rmi.Remote;
@@ -18,7 +20,8 @@ public interface ServicioDatosInterface extends Remote {
     // --- Gestión de Trinos ---
     void guardarTrino(Trino trino) throws RemoteException;
     List<Trino> obtenerTrinosDe(String nick) throws RemoteException;
-    
+    boolean eliminarTrino(String nick, long timestamp) throws RemoteException;
+
     // --- Gestión Offline (Trinos pendientes) ---
     void guardarTrinoPendiente(String nickDestinatario, Trino trino) throws RemoteException;
     List<Trino> obtenerTrinosPendientes(String nickDestinatario) throws RemoteException;
@@ -32,5 +35,6 @@ public interface ServicioDatosInterface extends Remote {
     void banearUsuario(String nick) throws RemoteException;
     void desbanearUsuario(String nick) throws RemoteException;
     boolean estaBaneado(String nick) throws RemoteException;
+    
 
 }

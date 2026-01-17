@@ -1,3 +1,5 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package bd;
 
 import java.rmi.RemoteException;
@@ -24,7 +26,6 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
     private ConcurrentHashMap<String, List<Trino>> trinos;
     private ConcurrentHashMap<String, List<Trino>> trinosPendientes;
     
-    // Lista de usuarios baneados (Requisito Pág 4 y 6)
     private List<String> baneados;
 
     public Basededatos() throws RemoteException {
@@ -36,7 +37,6 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
         baneados = Collections.synchronizedList(new ArrayList<>());
     }
 
-    // --- IMPLEMENTACIÓN INTERFAZ REMOTA ---
 
     @Override
     public boolean guardarUsuario(String nombre, String nick, String password) throws RemoteException {
@@ -61,10 +61,19 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
 
     @Override
     public void guardarSeguidor(String nickSeguidor, String nickSeguido) throws RemoteException {
+        
+        if (nickSeguidor.equals(nickSeguido)) {
+            System.out.println("BD: Intento de auto-seguimiento rechazado para " + nickSeguidor);
+            return; 
+        }
+
         List<String> lista = seguidores.get(nickSeguido);
         if (lista != null) {
             synchronized (lista) {
-                if (!lista.contains(nickSeguidor)) lista.add(nickSeguidor);
+                if (!lista.contains(nickSeguidor)) {
+                    lista.add(nickSeguidor);
+                    System.out.println("BD: " + nickSeguidor + " ahora sigue a " + nickSeguido);
+                }
             }
         }
     }
@@ -111,7 +120,7 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
         if (pendientes != null) pendientes.clear();
     }
     
-    // --- GESTIÓN DE BANEOS (Requisito Pág 4 y 6) ---
+    
     
     @Override
     public void banearUsuario(String nick) throws RemoteException {
@@ -132,7 +141,7 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
         return baneados.contains(nick);
     }
     
-    // --- MÉTODO AUXILIAR LOCAL PARA EL MENÚ (No remoto) ---
+   
     public void imprimirTodosLosTrinos() {
         System.out.println("--- LISTADO DE TRINOS (Nick # Timestamp) ---");
         for (String nick : trinos.keySet()) {
@@ -143,7 +152,7 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
         }
     }
 
-    // --- MAIN CON MENÚ (Requisito Pág 6) ---
+   
 
     public static void main(String[] args) {
         try {
@@ -195,4 +204,28 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
 		// TODO Auto-generated method stub
 		return usuarios.size() ;
 	}
+	
+	@Override
+    public boolean eliminarTrino(String nickPropietario, long timestamp) throws RemoteException {
+        boolean borradoDeHistorial = false;
+        
+        List<Trino> listaPropia = trinos.get(nickPropietario);
+        if (listaPropia != null) {
+            synchronized (listaPropia) {
+                borradoDeHistorial = listaPropia.removeIf(t -> t.GetTimestamp() == timestamp);
+            }
+        }
+        
+        for (List<Trino> listaPendientes : trinosPendientes.values()) {
+            synchronized (listaPendientes) {
+                listaPendientes.removeIf(t -> t.GetTimestamp() == timestamp && t.GetNickPropietario().equals(nickPropietario));
+            }
+        }
+
+        if (borradoDeHistorial) {
+             System.out.println("BD: Trino de " + nickPropietario + " eliminado GLOBALMENTE (Time: " + timestamp + ")");
+             return true;
+        }
+        return false;
+    }
 }

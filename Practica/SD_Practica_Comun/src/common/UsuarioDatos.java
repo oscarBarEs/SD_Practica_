@@ -1,8 +1,9 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package common;
 
 import java.io.Serializable;
 
-// Clase contenedor para guardar la información del usuario en la BD
 public class UsuarioDatos implements Serializable {
     private static final long serialVersionUID = 1L;
     

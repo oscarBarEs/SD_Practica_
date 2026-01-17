@@ -1,3 +1,5 @@
+//Óscar Barquilla Esteban obarquill1@alumno.uned.es
+
 package servidor;
 
 import java.rmi.RemoteException;
@@ -129,11 +131,27 @@ public class ServicioGestorImpl extends UnicastRemoteObject implements ServicioA
         db.eliminarSeguidor(nickSeguidor, nickSeguido);
     }
 
+
+    
+    @Override
+    public int obtenerNumSeguidores(String nick) throws RemoteException {
+        return db.obtenerSeguidores(nick).size();
+    }
+
+    @Override
+    public int obtenerNumTrinos(String nick) throws RemoteException {
+        return db.obtenerTrinosDe(nick).size();
+    }
+    @Override
+    public List<Trino> listarTrinos(String nick) throws RemoteException {
+        // Delegamos en la BD para obtener los trinos de este usuario
+        return db.obtenerTrinosDe(nick);
+    }
+
     @Override
     public boolean borrarTrino(String nickPropietario, long timestamp) throws RemoteException {
-        return false; // Opcional
+        System.out.println("Servidor: Solicitud de borrado de " + nickPropietario);
+        return db.eliminarTrino(nickPropietario, timestamp);
     }
-    
-
     
 }
