@@ -28,5 +28,9 @@ public interface ServicioDatosInterface extends Remote {
     int obtenerNumeroUsuarios() throws RemoteException;
     
     List<String> obtenerListadoUsuarios() throws RemoteException;
+    
+    void banearUsuario(String nick) throws RemoteException;
+    void desbanearUsuario(String nick) throws RemoteException;
+    boolean estaBaneado(String nick) throws RemoteException;
 
 }

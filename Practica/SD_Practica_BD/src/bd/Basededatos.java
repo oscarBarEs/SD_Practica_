@@ -7,6 +7,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
 
 import common.ServicioDatosInterface;
@@ -17,168 +18,181 @@ public class Basededatos extends UnicastRemoteObject implements ServicioDatosInt
     
     private static final long serialVersionUID = 1L;
 
-    // Estructuras de Almacenamiento en Memoria (Thread-Safe)
-    
-    // Mapa: Nick -> Objeto UsuarioDatos (Perfil, Password)
+    // Estructuras de datos
     private ConcurrentHashMap<String, UsuarioDatos> usuarios;
-    
-    // Mapa: Nick -> Lista de Nicks que le siguen
     private ConcurrentHashMap<String, List<String>> seguidores;
-    
-    // Mapa: Nick -> Lista de Trinos PROPIOS (Historial del usuario)
     private ConcurrentHashMap<String, List<Trino>> trinos;
-    
-    // Mapa: Nick Destinatario -> Lista de Trinos PENDIENTES de leer (Offline)
     private ConcurrentHashMap<String, List<Trino>> trinosPendientes;
+    
+    // Lista de usuarios baneados (Requisito Pág 4 y 6)
+    private List<String> baneados;
 
-    // Constructor
     public Basededatos() throws RemoteException {
         super();
-        // Inicializamos las estructuras
         usuarios = new ConcurrentHashMap<>();
         seguidores = new ConcurrentHashMap<>();
         trinos = new ConcurrentHashMap<>();
         trinosPendientes = new ConcurrentHashMap<>();
-        
-        // Datos de prueba (Opcional, para no empezar vacíos)
-        System.out.println("Base de Datos inicializada en memoria.");
+        baneados = Collections.synchronizedList(new ArrayList<>());
     }
 
-    // --- IMPLEMENTACIÓN DE LA INTERFAZ ---
+    // --- IMPLEMENTACIÓN INTERFAZ REMOTA ---
 
     @Override
     public boolean guardarUsuario(String nombre, String nick, String password) throws RemoteException {
-        if (usuarios.containsKey(nick)) {
-            return false; // Ya existe
-        }
-        UsuarioDatos nuevoUsuario = new UsuarioDatos(nombre, nick, password);
-        usuarios.put(nick, nuevoUsuario);
-        
-        // Inicializamos sus listas vacías para evitar NullPointer después
+        if (usuarios.containsKey(nick)) return false;
+        usuarios.put(nick, new UsuarioDatos(nombre, nick, password));
         seguidores.put(nick, Collections.synchronizedList(new ArrayList<>()));
         trinos.put(nick, Collections.synchronizedList(new ArrayList<>()));
         trinosPendientes.put(nick, Collections.synchronizedList(new ArrayList<>()));
-        
-        System.out.println("BD: Usuario registrado -> " + nick);
         return true;
     }
 
     @Override
     public boolean validarCredenciales(String nick, String password) throws RemoteException {
         if (!usuarios.containsKey(nick)) return false;
-        
-        String passReal = usuarios.get(nick).getPassword();
-        return passReal.equals(password);
+        return usuarios.get(nick).getPassword().equals(password);
+    }
+
+    @Override
+    public List<String> obtenerListadoUsuarios() throws RemoteException {
+        return new ArrayList<>(usuarios.keySet());
     }
 
     @Override
     public void guardarSeguidor(String nickSeguidor, String nickSeguido) throws RemoteException {
-        // Obtenemos la lista de seguidores del usuario 'nickSeguido'
-        List<String> listaSeguidores = seguidores.get(nickSeguido);
-        
-        if (listaSeguidores != null) {
-            // Sincronizamos para evitar duplicados si dan doble click muy rápido
-            synchronized (listaSeguidores) {
-                if (!listaSeguidores.contains(nickSeguidor)) {
-                    listaSeguidores.add(nickSeguidor);
-                    System.out.println("BD: " + nickSeguidor + " ahora sigue a " + nickSeguido);
-                }
+        List<String> lista = seguidores.get(nickSeguido);
+        if (lista != null) {
+            synchronized (lista) {
+                if (!lista.contains(nickSeguidor)) lista.add(nickSeguidor);
             }
         }
     }
 
     @Override
     public void eliminarSeguidor(String nickSeguidor, String nickSeguido) throws RemoteException {
-        List<String> listaSeguidores = seguidores.get(nickSeguido);
-        if (listaSeguidores != null) {
-            listaSeguidores.remove(nickSeguidor);
-            System.out.println("BD: " + nickSeguidor + " dejó de seguir a " + nickSeguido);
-        }
+        List<String> lista = seguidores.get(nickSeguido);
+        if (lista != null) lista.remove(nickSeguidor);
     }
 
     @Override
     public List<String> obtenerSeguidores(String nick) throws RemoteException {
-        // Retornamos una copia para evitar problemas de concurrencia si la lista cambia mientras se lee
         List<String> lista = seguidores.get(nick);
-        if (lista == null) return new ArrayList<>();
-        return new ArrayList<>(lista);
+        return (lista == null) ? new ArrayList<>() : new ArrayList<>(lista);
     }
 
     @Override
     public void guardarTrino(Trino trino) throws RemoteException {
-        String propietario = trino.GetNickPropietario();
-        List<Trino> historial = trinos.get(propietario);
-        
-        if (historial != null) {
-            historial.add(trino);
-            System.out.println("BD: Trino guardado de " + propietario);
-        }
+        List<Trino> historial = trinos.get(trino.GetNickPropietario());
+        if (historial != null) historial.add(trino);
     }
 
     @Override
     public List<Trino> obtenerTrinosDe(String nick) throws RemoteException {
         List<Trino> lista = trinos.get(nick);
-        if (lista == null) return new ArrayList<>();
-        return new ArrayList<>(lista);
+        return (lista == null) ? new ArrayList<>() : new ArrayList<>(lista);
     }
 
     @Override
     public void guardarTrinoPendiente(String nickDestinatario, Trino trino) throws RemoteException {
         List<Trino> pendientes = trinosPendientes.get(nickDestinatario);
-        if (pendientes != null) {
-            pendientes.add(trino);
-            // System.out.println("BD: Trino encolado para " + nickDestinatario + " (Offline)");
-        }
+        if (pendientes != null) pendientes.add(trino);
     }
 
     @Override
     public List<Trino> obtenerTrinosPendientes(String nickDestinatario) throws RemoteException {
         List<Trino> pendientes = trinosPendientes.get(nickDestinatario);
-        if (pendientes == null) return new ArrayList<>();
-        return new ArrayList<>(pendientes);
+        return (pendientes == null) ? new ArrayList<>() : new ArrayList<>(pendientes);
     }
 
     @Override
     public void borrarTrinosPendientes(String nickDestinatario) throws RemoteException {
         List<Trino> pendientes = trinosPendientes.get(nickDestinatario);
-        if (pendientes != null) {
-            pendientes.clear();
+        if (pendientes != null) pendientes.clear();
+    }
+    
+    // --- GESTIÓN DE BANEOS (Requisito Pág 4 y 6) ---
+    
+    @Override
+    public void banearUsuario(String nick) throws RemoteException {
+        if (!baneados.contains(nick) && usuarios.containsKey(nick)) {
+            baneados.add(nick);
+            System.out.println("BD: Usuario BANEADO -> " + nick);
         }
     }
 
     @Override
-    public int obtenerNumeroUsuarios() throws RemoteException {
-        return usuarios.size();
+    public void desbanearUsuario(String nick) throws RemoteException {
+        baneados.remove(nick);
+        System.out.println("BD: Usuario DESBANEADO -> " + nick);
     }
-    
+
     @Override
-    public List<String> obtenerListadoUsuarios() throws RemoteException {
-        // Obtenemos todas las claves (nicks) del mapa de usuarios
-        // Creamos un ArrayList nuevo para que sea serializable y seguro enviar
-        return new ArrayList<>(usuarios.keySet());
+    public boolean estaBaneado(String nick) throws RemoteException {
+        return baneados.contains(nick);
     }
     
-    // --- ARRANQUE DEL SERVIDOR (MAIN) ---
-    
+    // --- MÉTODO AUXILIAR LOCAL PARA EL MENÚ (No remoto) ---
+    public void imprimirTodosLosTrinos() {
+        System.out.println("--- LISTADO DE TRINOS (Nick # Timestamp) ---");
+        for (String nick : trinos.keySet()) {
+            List<Trino> lista = trinos.get(nick);
+            for (Trino t : lista) {
+                System.out.println(t.GetNickPropietario() + " # " + t.GetTimestamp());
+            }
+        }
+    }
+
+    // --- MAIN CON MENÚ (Requisito Pág 6) ---
+
     public static void main(String[] args) {
         try {
-            // 1. Crear e iniciar el objeto remoto
             Basededatos bd = new Basededatos();
-            
-            // 2. Arrancar el registro RMI en el puerto por defecto 1099
-            // Nota: En producción a veces se lanza 'rmiregistry' por consola, 
-            // pero crear el registro aquí simplifica la ejecución en Eclipse.
             Registry registry = LocateRegistry.createRegistry(1099);
-            
-            // 3. Publicar el objeto remoto con un nombre
             registry.rebind("ServicioDatos", bd);
             
-            System.out.println("--- SERVIDOR DE BASE DE DATOS LISTO ---");
-            System.out.println("Registrado como: ServicioDatos");
+            System.out.println("--- SERVIDOR DE BASE DE DATOS INICIADO ---");
+            
+            // MENÚ INTERACTIVO
+            Scanner scanner = new Scanner(System.in);
+            boolean salir = false;
+            
+            while (!salir) {
+                System.out.println("\n=== MENÚ BASE DE DATOS ===");
+                System.out.println("1.- Información de la Base de Datos");
+                System.out.println("2.- Listar Trinos");
+                System.out.println("3.- Salir");
+                System.out.print("Elija opción: ");
+                
+                String opcion = scanner.nextLine();
+                switch (opcion) {
+                    case "1":
+                        System.out.println("BD ejecutándose en puerto 1099.");
+                        System.out.println("Usuarios registrados: " + bd.usuarios.size());
+                        break;
+                    case "2":
+                        bd.imprimirTodosLosTrinos();
+                        break;
+                    case "3":
+                        salir = true;
+                        System.out.println("Cerrando Base de Datos...");
+                        UnicastRemoteObject.unexportObject(bd, true);
+                        System.exit(0);
+                        break;
+                    default:
+                        System.out.println("Opción incorrecta.");
+                }
+            }
+            scanner.close();
             
         } catch (Exception e) {
-            System.err.println("Error en Servidor BD:");
             e.printStackTrace();
         }
     }
+
+	@Override
+	public int obtenerNumeroUsuarios() throws RemoteException {
+		// TODO Auto-generated method stub
+		return usuarios.size() ;
+	}
 }

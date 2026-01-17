@@ -75,29 +75,39 @@ public class ServicioGestorImpl extends UnicastRemoteObject implements ServicioA
 
     // --- IMPLEMENTACIÓN DE GESTOR ---
 
+ // Método LOCAL para que el menú del Servidor pueda ver quién está online
+    public java.util.Set<String> obtenerUsuariosConectadosLocal() {
+        return usuariosConectados.keySet();
+    }
+
+    // Y MODIFICAMOS enviarTrino para respetar el BANEO:
     @Override
     public void enviarTrino(String nickPropietario, String mensaje) throws RemoteException {
+        // Verificar si está baneado antes de enviar
+        if (db.estaBaneado(nickPropietario)) {
+            System.out.println("Servidor: " + nickPropietario + " intentó escribir pero está BANEADO.");
+            // Guardamos el trino pero NO lo distribuimos (según Pág 4)
+            Trino nuevoTrino = new Trino(nickPropietario, mensaje);
+            db.guardarTrino(nuevoTrino);
+            return; 
+        }
+        
+        // ... (resto del código de enviarTrino igual que antes) ...
         System.out.println("Servidor: Nuevo trino de " + nickPropietario);
-        
         Trino nuevoTrino = new Trino(nickPropietario, mensaje);
-        db.guardarTrino(nuevoTrino); // Guardar en historial
+        db.guardarTrino(nuevoTrino);
         
-        // Obtener seguidores para distribuir el mensaje
         List<String> seguidores = db.obtenerSeguidores(nickPropietario);
-        
         for (String seguidor : seguidores) {
             CallbackUsuarioInterface callback = usuariosConectados.get(seguidor);
             if (callback != null) {
                 try {
-                    // Si está conectado, enviamos directamente
                     callback.recibirTrino(nuevoTrino);
                 } catch (RemoteException e) {
-                    // Si falla, lo marcamos como offline
                     usuariosConectados.remove(seguidor);
                     db.guardarTrinoPendiente(seguidor, nuevoTrino);
                 }
             } else {
-                // Si no está conectado, guardar para luego
                 db.guardarTrinoPendiente(seguidor, nuevoTrino);
             }
         }
@@ -123,4 +133,7 @@ public class ServicioGestorImpl extends UnicastRemoteObject implements ServicioA
     public boolean borrarTrino(String nickPropietario, long timestamp) throws RemoteException {
         return false; // Opcional
     }
+    
+
+    
 }
