@@ -1,0 +1,16 @@
+# --- CRÍTICO: Ignorar carpeta interna de Eclipse ---
+.metadata/
+*/.metadata/
+
+# --- Binarios y Compilados ---
+bin/
+*/bin/
+*.class
+
+# --- Archivos del Sistema Operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Logs y temporales ---
+*.log
+*.tmp
